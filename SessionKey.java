@@ -14,6 +14,7 @@ class SessionKey {
      */
     public SessionKey(Integer length) {
         SecureRandom sr = new SecureRandom();
+        key = new byte[length/8];
         sr.nextBytes(key);
     }
 
@@ -37,5 +38,22 @@ class SessionKey {
      */
     public byte[] getKeyBytes() {
         return key;
+    }
+
+    public static void main(String[] args) {
+        SessionKey nyckel = new SessionKey(128);
+        byte[] byteArray = nyckel.getKeyBytes();
+
+
+        // Loopa igenom varje byte i byte-arrayen
+        int counter = 0;
+        for (byte b : byteArray) {
+            // Konvertera varje byte till en bitsträng och skriv ut
+            String bitString = String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0');
+            System.out.print(bitString);
+            counter++;
+        }
+        System.out.println();
+        System.out.println("amount of bits: " + counter * 8);
     }
 }
