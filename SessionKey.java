@@ -1,59 +1,54 @@
-import javax.crypto.SecretKey;
-import java.security.SecureRandom;
+import javax.crypto.*;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.NoSuchAlgorithmException;
 
-/*
- * Skeleton code for class SessionKey
- */
+// skeleton code for class SessionKey
 
 class SessionKey {
+    // as specified in the task description + test files:
+    // the generated key should be AES
+
     SecretKey sk;
-    byte[] key;
+    String algorithm = "AES";   // in case if we want to change the algorithm in a later task
 
-    /*
-     * Constructor to create a secret key of a given length
-     */
-    public SessionKey(Integer length) {
-        SecureRandom sr = new SecureRandom();
-        key = new byte[length/8];
-        sr.nextBytes(key);
+    // constructor to create a secret key of a given length
+    public SessionKey(Integer size) throws NoSuchAlgorithmException {
+        KeyGenerator kg = KeyGenerator.getInstance(algorithm);
+        kg.init(size);
+        sk = kg.generateKey();
     }
 
-    /*
-     * Constructor to create a secret key from key material
-     * given as a byte array
-     */
-    public SessionKey(byte[] keybytes) {
-        key = keybytes;
+    // constructor to create a secret key from key material given as a byte array
+    public SessionKey(byte[] keybytes) throws NoSuchAlgorithmException {
+        sk = new SecretKeySpec(keybytes, algorithm);
     }
 
-    /*
-     * Return the secret key
-     */
+    // return the secret key
     public SecretKey getSecretKey() {
         return sk;
     }
 
-    /*
-     * Return the secret key encoded as a byte array
-     */
+    // return the secret key encoded as a byte array
     public byte[] getKeyBytes() {
-        return key;
+        return sk.getEncoded();
     }
 
-    public static void main(String[] args) {
-        SessionKey nyckel = new SessionKey(128);
-        byte[] byteArray = nyckel.getKeyBytes();
+    /* test!!! */
+    /* (delete later probably?) */
 
+    /*
+        public static void main(String[] args) throws NoSuchAlgorithmException {
+            SessionKey nyckel = new SessionKey(256);
+            byte[] byteArray = nyckel.getKeyBytes();
 
-        // Loopa igenom varje byte i byte-arrayen
-        int counter = 0;
-        for (byte b : byteArray) {
-            // Konvertera varje byte till en bitsträng och skriv ut
-            String bitString = String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0');
-            System.out.print(bitString);
-            counter++;
+            int counter = 0;
+            for (byte b : byteArray) {
+                String bitString = String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0');
+                System.out.print(bitString);
+                counter++;
+            }
+            System.out.println();
+            System.out.println("amount of bits: " + counter * 8);
         }
-        System.out.println();
-        System.out.println("amount of bits: " + counter * 8);
-    }
+    */
 }
