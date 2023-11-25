@@ -32,23 +32,4 @@ class SessionKey {
     public byte[] getKeyBytes() {
         return sk.getEncoded();
     }
-
-    /* test!!! */
-    /* (delete later probably?) */
-
-    /*
-        public static void main(String[] args) throws NoSuchAlgorithmException {
-            SessionKey nyckel = new SessionKey(256);
-            byte[] byteArray = nyckel.getKeyBytes();
-
-            int counter = 0;
-            for (byte b : byteArray) {
-                String bitString = String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0');
-                System.out.print(bitString);
-                counter++;
-            }
-            System.out.println();
-            System.out.println("amount of bits: " + counter * 8);
-        }
-    */
 }
