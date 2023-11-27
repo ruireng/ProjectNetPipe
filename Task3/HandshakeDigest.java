@@ -1,22 +1,24 @@
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 public class HandshakeDigest {
 
-    /*
-     * Constructor -- initialise a digest for SHA-256
-     */
+    MessageDigest md;
 
-    public HandshakeDigest() {
+    // constructor -- initialise a digest for SHA-256
+    public HandshakeDigest() throws NoSuchAlgorithmException {
+        md = MessageDigest.getInstance("SHA256");
     }
 
-    /*
-     * Update digest with input data
-     */
+    // update digest with input data
     public void update(byte[] input) {
+        md.update(input);
     }
 
-    /*
-     * Compute final digest
-     */
+    // compute final digest
     public byte[] digest() {
-        return new byte[0];
+        byte[] digest = md.digest();
+
+        return digest;
     }
 }
