@@ -7,9 +7,11 @@ import java.security.NoSuchProviderException;
 import java.security.SignatureException;
 
 import java.security.cert.*;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 
+import javax.naming.InvalidNameException;
+import javax.naming.NamingException;
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 import javax.security.auth.x500.X500Principal;
 
 // handshakeCertificate class represents X509 certificates exchanged during initial handshake
@@ -48,13 +50,40 @@ public class HandshakeCertificate {
 
     // return CN (Common Name) of subject
     public String getCN() {
-        X500Principal subjectInfo = cert.getSubjectX500Principal();
-        
-        return null;
+        // got a lot of help from this forum:
+        // https://stackoverflow.com/questions/2914521/how-to-extract-cn-from-x509certificate-in-java
+
+        String dn = cert.getSubjectX500Principal().toString();
+        try {
+            LdapName ln = new LdapName(dn);
+            for(Rdn rdn : ln.getRdns()) {
+                if(rdn.getType().equals("CN")) {
+                    return rdn.getValue().toString();
+                }
+            }
+
+            return null;
+        }
+        catch(InvalidNameException ine) {
+            return null;
+        }
     }
 
     // return email address of subject
     public String getEmail() {
-        return null;
+        String dn = cert.getSubjectX500Principal().toString();
+        try {
+            LdapName ln = new LdapName(dn);
+            for(Rdn rdn : ln.getRdns()) {
+                if(rdn.getType().equals("EMAILADDRESS")) {
+                    return rdn.getValue().toString();
+                }
+            }
+
+            return null;
+        }
+        catch(InvalidNameException ine) {
+            return null;
+        }
     }
 }
