@@ -52,9 +52,7 @@ public class SessionCipher {
 
     // attach OutputStream to which encrypted data will be written
     // return result as a CipherOutputStream instance
-    CipherOutputStream openEncryptedOutputStream(OutputStream os) throws Exception {
-        // list of exceptions if it becomes important later:
-        // NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameter
+    CipherOutputStream openEncryptedOutputStream(OutputStream os) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
 
         // specified in the instructions:
         // AES, CTR mode, no padding
@@ -72,7 +70,7 @@ public class SessionCipher {
 
     // attach InputStream from which decrypted data will be read
     // return result as a CipherInputStream instance
-    CipherInputStream openDecryptedInputStream(InputStream is) throws Exception {
+    CipherInputStream openDecryptedInputStream(InputStream is) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
         cipher = Cipher.getInstance("AES/CTR/NoPadding");
         SecretKey key = sk.getSecretKey();
         cipher.init(Cipher.DECRYPT_MODE, key, iv);
