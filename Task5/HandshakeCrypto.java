@@ -41,36 +41,30 @@ public class HandshakeCrypto {
 	}
 
     // decrypt byte array with the key, return result as a byte array
-    public byte[] decrypt(byte[] ciphertext) 
-    throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException,
-    BadPaddingException {
-      Cipher cipher = Cipher.getInstance("RSA");
-      if(certificate) {
-        cipher.init(Cipher.DECRYPT_MODE, pubkey);
-      }
-      else {
-        cipher.init(Cipher.DECRYPT_MODE, prikey);
-      }
+    public byte[] decrypt(byte[] ciphertext) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+        Cipher cipher = Cipher.getInstance("RSA");
+        if(certificate) {
+            cipher.init(Cipher.DECRYPT_MODE, pubkey);
+        }
+        else {
+            cipher.init(Cipher.DECRYPT_MODE, prikey);
+        }   
+        byte[] plaintext = cipher.doFinal(ciphertext);
 
-      byte[] plaintext = cipher.doFinal(ciphertext);
-      
-		  return plaintext;
+    	return plaintext;
     }
 
     // encrypt byte array with the key, return result as a byte array
-    public byte [] encrypt(byte[] plaintext) 
-    throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException,
-    BadPaddingException {
-      Cipher cipher = Cipher.getInstance("RSA");
-      if(certificate) {
-        cipher.init(Cipher.ENCRYPT_MODE, pubkey);
-      }
-      else {
-        cipher.init(Cipher.ENCRYPT_MODE, prikey);
-      }
-
-      byte[] ciphertext = cipher.doFinal(plaintext);
-
-		  return ciphertext;
+    public byte [] encrypt(byte[] plaintext) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+        Cipher cipher = Cipher.getInstance("RSA");
+        if(certificate) {
+            cipher.init(Cipher.ENCRYPT_MODE, pubkey);
+        }
+        else {
+            cipher.init(Cipher.ENCRYPT_MODE, prikey);
+        }   
+        byte[] ciphertext = cipher.doFinal(plaintext);  
+    	
+        return ciphertext;
     }
 }
