@@ -21,6 +21,10 @@ public class NetPipeServer {
         arguments = new Arguments();
         arguments.setArgumentSpec("port", "portnumber");
 
+        arguments.setArgumentSpec("usercert", "server certificate");
+        arguments.setArgumentSpec("cacert", "CA certificate");
+        arguments.setArgumentSpec("key", "server private key");
+
         try {
         arguments.loadArguments(args);
         } catch (IllegalArgumentException ex) {
@@ -36,6 +40,11 @@ public class NetPipeServer {
         ServerSocket serverSocket = null;
 
         int port = Integer.parseInt(arguments.get("port"));
+
+        String usercertPath = arguments.get("usercert");
+        String cacertPath = arguments.get("cacert");
+        String privatekeyPath = arguments.get("key");
+        
         try {
             serverSocket = new ServerSocket(port);
         } catch (IOException ex) {
@@ -49,6 +58,13 @@ public class NetPipeServer {
             System.out.printf("Error accepting connection on port %d\n", port);
             System.exit(1);
         }
+        // wait for a CLIENTHELLO
+        // use HandshakeCertificate to verify client's certificate
+        // use HandshakeMessage to send SERVERHELLO including certificate
+        // wait for SESSION
+        // use server's private key to create a digest with HandshakeDigest and send SERVERFINISHED
+        // wait for CLIENTFINISHED
+        // verify the client's digest integrity
         try {
             Forwarder.forwardStreams(System.in, System.out, socket.getInputStream(), socket.getOutputStream(), socket);
         } catch (IOException ex) {
