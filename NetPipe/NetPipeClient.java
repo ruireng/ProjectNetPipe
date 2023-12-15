@@ -1,13 +1,19 @@
 import java.net.*;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Base64;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.CipherOutputStream;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.net.ssl.SSLEngineResult.HandshakeStatus;
 
 import java.io.*;
@@ -59,12 +65,33 @@ public class NetPipeClient {
             return hc;
         }
         catch(FileNotFoundException fnfe) {
-            System.err.printf("Can't find file %s\n", pathName);
+            System.err.printf("Cannot find file %s\n", pathName);
 
             return null;
         }
         catch(CertificateException ce) {
             System.err.printf("Error initiating certificate %s\n", pathName);
+
+            return null;
+        }
+    }
+
+    // initiate private key
+    private static byte[] initKey(String pathName) {
+        try {
+            FileInputStream fis = new FileInputStream(pathName);
+            byte[] PKBytes = fis.readAllBytes();
+            fis.close();
+
+            return PKBytes;
+        }
+        catch(FileNotFoundException fnfe) {
+            System.err.printf("Cannot find file %s\n", pathName);
+
+            return null;
+        }
+        catch(IOException ioe) {
+            System.err.printf("Error reading private key %s\n", pathName);
 
             return null;
         }
@@ -146,7 +173,8 @@ public class NetPipeClient {
         }
     }
 
-    private static void recvServerHello(Socket socket, HandshakeCertificate CA) {
+    // receive ServerHello and verify server certificate
+    private static HandshakeCertificate recvServerHello(Socket socket, HandshakeCertificate CA) {
         try {
             HandshakeMessage hm = HandshakeMessage.recv(socket);
             if(hm.getType().getCode() != 2) {
@@ -154,18 +182,56 @@ public class NetPipeClient {
             }
             String encodedCert = hm.getParameter("Certificate");
             byte[] decodedCert = Base64.getDecoder().decode(encodedCert);
-            HandshakeCertificate clientCert = new HandshakeCertificate(decodedCert);
-            verifyServerCert(clientCert, CA);
+            HandshakeCertificate serverCert = new HandshakeCertificate(decodedCert);
+            verifyServerCert(serverCert, CA);
+
+            return serverCert;
         }
         catch(IOException | ClassNotFoundException e) {
             System.err.printf("Error receiving ServerHello from server\n");
 
-            System.exit(1);
+            return null;
         }
         catch(CertificateException ce) {
             System.err.printf("Error reading server certificate\n");
 
-            System.exit(1);
+            return null;
+        }
+    }
+
+    // send Session message
+    private static SessionCipher sendSession(Socket socket, HandshakeCertificate serverCert) {
+        HandshakeMessage hm = new HandshakeMessage(HandshakeMessage.MessageType.SESSION);
+        HandshakeCrypto hc = new HandshakeCrypto(serverCert);
+        try {
+            SessionKey sk = new SessionKey(128);
+            SessionCipher sc = new SessionCipher(sk);
+            byte[] SKBytes = sk.getKeyBytes();
+            byte[] IVBytes = sc.getIVBytes();
+            SKBytes = hc.encrypt(SKBytes);
+            IVBytes = hc.encrypt(IVBytes);
+            String encodedSK = Base64.getEncoder().encodeToString(SKBytes);
+            String encodedIV = Base64.getEncoder().encodeToString(IVBytes);
+            hm.put("SessionKey", encodedSK);
+            hm.put("SessionIV", encodedIV);
+            hm.send(socket);
+
+            return sc;
+        }
+        catch(NoSuchAlgorithmException nsae) {
+            System.err.printf("Error creating session key\n");
+
+            return null;
+        }
+        catch(NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
+            System.err.printf("Error encrypting session message\n");
+
+            return null;
+        }
+        catch(IOException ioe) {
+            System.err.printf("Error sending Session\n");
+
+            return null;
         }
     }
 
@@ -187,6 +253,10 @@ public class NetPipeClient {
         }
         verifyCACert(caCert);
         verifyClientCert(clientCert, caCert);
+        byte[] key = initKey(privatekeyPath);
+        if(key == null) {
+            System.exit(1);
+        }
 
         Socket socket = initSocket(host, port);
         if(socket == null) {
@@ -197,10 +267,18 @@ public class NetPipeClient {
         sendClientHello(socket, clientCert);
         System.out.println("sent ClientHello");
         // wait for SERVERHELLO
-        recvServerHello(socket, caCert);
+        HandshakeCertificate serverCert = recvServerHello(socket, caCert);
+        if(serverCert == null) {
+            System.exit(1);
+        }
         System.out.println("received ServerHello");
         // use HandshakeCertificate to verify server's certificate
         // send SESSION to server
+        SessionCipher sessionCipher = sendSession(socket, serverCert);
+        if(sessionCipher == null) {
+            System.exit(1);
+        }
+        //System.out.println("sent Session");
         // wait for SERVERFINISHED
         // send CLIENTFINISHED
         try {
