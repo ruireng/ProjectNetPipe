@@ -13,6 +13,11 @@ public class NetPipeServer {
         System.err.println(indent + "Where options are:");
         indent += "    ";
         System.err.println(indent + "--port=<portnumber>");
+
+        System.err.println(indent + "--usercert=<filename>");
+        System.err.println(indent + "--cacert=<filename>");
+        System.err.println(indent + "--key=<filename>");
+
         System.exit(1);
     }
 
@@ -21,9 +26,9 @@ public class NetPipeServer {
         arguments = new Arguments();
         arguments.setArgumentSpec("port", "portnumber");
 
-        arguments.setArgumentSpec("usercert", "server certificate");
-        arguments.setArgumentSpec("cacert", "CA certificate");
-        arguments.setArgumentSpec("key", "server private key");
+        arguments.setArgumentSpec("usercert", "filename");
+        arguments.setArgumentSpec("cacert", "filename");
+        arguments.setArgumentSpec("key", "filename");
 
         try {
         arguments.loadArguments(args);
