@@ -3,7 +3,13 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SignatureException;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.Base64;
+
+import javax.net.ssl.SSLEngineResult.HandshakeStatus;
+
 import java.io.*;
 
 public class NetPipeClient {
@@ -32,7 +38,6 @@ public class NetPipeClient {
         arguments = new Arguments();
         arguments.setArgumentSpec("host", "hostname");
         arguments.setArgumentSpec("port", "portnumber");
-
         arguments.setArgumentSpec("usercert", "filename");
         arguments.setArgumentSpec("cacert", "filename");
         arguments.setArgumentSpec("key", "filename");
@@ -40,7 +45,7 @@ public class NetPipeClient {
         try {
         arguments.loadArguments(args);
         }
-        catch(IllegalArgumentException ex) {
+        catch(IllegalArgumentException iae) {
             usage();
         }
     }
@@ -65,9 +70,26 @@ public class NetPipeClient {
         }
     }
 
-    // verify client certificate against CA
-    private static void verifyCert(HandshakeCertificate client, HandshakeCertificate CA) {
+    // verify CA certificate
+    private static void verifyCACert(HandshakeCertificate CA) {
         try {
+            if(!(CA.getCN().equals("ca-np.ik2206.kth.se"))) {
+                throw new CertificateException();
+            }
+            CA.verify(CA);
+        }
+        catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
+            System.err.printf("Error verifying CA certificate");
+            System.exit(1);
+        }
+    }
+
+    // verify client certificate against CA
+    private static void verifyClientCert(HandshakeCertificate client, HandshakeCertificate CA) {
+        try {
+            if(!(client.getCN().equals("client-np.ik2206.kth.se"))) {
+                throw new CertificateException();
+            }
             client.verify(CA);
         }
         catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
@@ -83,31 +105,55 @@ public class NetPipeClient {
 
             return socket;
         }
-        catch(IOException ex) {
+        catch(IOException ioe) {
             System.err.printf("Can't connect to server at %s:%d\n", host, port);
             
             return null;
         }
     }
 
+    // send ClientHello message
+    private static void sendClientHello(Socket socket, HandshakeCertificate usercert) {
+        HandshakeMessage hm = new HandshakeMessage(HandshakeMessage.MessageType.CLIENTHELLO);
+        try {
+            X509Certificate cert = usercert.getCertificate();
+            byte[] certBytes = cert.getEncoded();
+            String encodedCert = Base64.getEncoder().encodeToString(certBytes);
+            hm.put("Certificate", encodedCert);
+            hm.send(socket);
+        }
+        catch(CertificateEncodingException cee) {
+            System.err.printf("Error getting encoded certificate\n");
+            System.exit(1);
+        }
+        catch(IOException ioe) {
+            System.err.printf("Error sending ClientHello\n");
+            System.exit(1);
+        }
+    }
+
+    private static void recvServerHello(Socket socket) {
+
+    }
+
     // main program
     // parse arguments on command line, connect to server,
     // and call forwarder to forward data between streams
-    public static void main( String[] args) {
+    public static void main(String[] args) {
         parseArgs(args);
         String host = arguments.get("host");
-        int port = Integer.parseInt(arguments.get("port"));
-        
+        int port = Integer.parseInt(arguments.get("port"));        
         String usercertPath = arguments.get("usercert");
         String cacertPath = arguments.get("cacert");
         String privatekeyPath = arguments.get("key");
 
         HandshakeCertificate clientCert = initCert(usercertPath);
-        HandshakeCertificate CAcert = initCert(cacertPath);
-        if(clientCert == null || CAcert == null) {
+        HandshakeCertificate caCert = initCert(cacertPath);
+        if(clientCert == null || caCert == null) {
             System.exit(1);
         }
-        verifyCert(clientCert, CAcert);
+        verifyCACert(caCert);
+        verifyClientCert(clientCert, caCert);
 
         Socket socket = initSocket(host, port);
         if(socket == null) {
@@ -115,6 +161,8 @@ public class NetPipeClient {
         }
         
         // use HandshakeMessage to send CLIENTHELLO to server
+        sendClientHello(socket, clientCert);
+        System.out.println("sent ClientHello");
         // wait for SERVERHELLO
         // use HandshakeCertificate to verify server's certificate
         // send SESSION to server
