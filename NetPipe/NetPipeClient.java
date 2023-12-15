@@ -98,6 +98,20 @@ public class NetPipeClient {
         }
     }
 
+    // verify server certificate against CA
+    private static void verifyServerCert(HandshakeCertificate server, HandshakeCertificate CA) {
+        try {
+            if(!(server.getCN().equals("server-np.ik2206.kth.se"))) {
+                throw new CertificateException();
+            }
+            server.verify(CA);
+        }
+        catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
+            System.err.printf("Error verifying server certificate\n");
+            System.exit(1);
+        }
+    }
+
     // initiate socket
     private static Socket initSocket(String host, int port) {
         try {
@@ -132,8 +146,27 @@ public class NetPipeClient {
         }
     }
 
-    private static void recvServerHello(Socket socket) {
+    private static void recvServerHello(Socket socket, HandshakeCertificate CA) {
+        try {
+            HandshakeMessage hm = HandshakeMessage.recv(socket);
+            if(hm.getType().getCode() != 2) {
+                throw new IOException();
+            }
+            String encodedCert = hm.getParameter("Certificate");
+            byte[] decodedCert = Base64.getDecoder().decode(encodedCert);
+            HandshakeCertificate clientCert = new HandshakeCertificate(decodedCert);
+            verifyServerCert(clientCert, CA);
+        }
+        catch(IOException | ClassNotFoundException e) {
+            System.err.printf("Error receiving ServerHello from server\n");
 
+            System.exit(1);
+        }
+        catch(CertificateException ce) {
+            System.err.printf("Error reading server certificate\n");
+
+            System.exit(1);
+        }
     }
 
     // main program
@@ -164,6 +197,8 @@ public class NetPipeClient {
         sendClientHello(socket, clientCert);
         System.out.println("sent ClientHello");
         // wait for SERVERHELLO
+        recvServerHello(socket, caCert);
+        System.out.println("received ServerHello");
         // use HandshakeCertificate to verify server's certificate
         // send SESSION to server
         // wait for SERVERFINISHED

@@ -3,7 +3,9 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SignatureException;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.io.*;
 
@@ -71,7 +73,21 @@ public class NetPipeServer {
             CA.verify(CA);
         }
         catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
-            System.err.printf("Error verifying server certificate");
+            System.err.printf("Error verifying server certificate\n");
+            System.exit(1);
+        }
+    }
+
+    // verify client certificate against CA
+    private static void verifyClientCert(HandshakeCertificate client, HandshakeCertificate CA) {
+        try {
+            if(!(client.getCN().equals("client-np.ik2206.kth.se"))) {
+                throw new CertificateException();
+            }
+            client.verify(CA);
+        }
+        catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
+            System.err.printf("Error verifying client certificate");
             System.exit(1);
         }
     }
@@ -85,7 +101,7 @@ public class NetPipeServer {
             server.verify(CA);
         }
         catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
-            System.err.printf("Error verifying server certificate");
+            System.err.printf("Error verifying server certificate\n");
             System.exit(1);
         }
     }
@@ -127,16 +143,36 @@ public class NetPipeServer {
             String encodedCert = hm.getParameter("Certificate");
             byte[] decodedCert = Base64.getDecoder().decode(encodedCert);
             HandshakeCertificate clientCert = new HandshakeCertificate(decodedCert);
-            clientCert.verify(CA);
+            verifyClientCert(clientCert, CA);
         }
         catch(IOException | ClassNotFoundException e) {
-            System.err.printf("Error receiving ClientHello from client");
+            System.err.printf("Error receiving ClientHello from client\n");
 
             System.exit(1);
         }
-        catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
-            System.err.printf("Error reading client certificate");
+        catch(CertificateException ce) {
+            System.err.printf("Error reading client certificate\n");
 
+            System.exit(1);
+        }
+    }
+
+    // send ServerHello message
+    private static void sendServerHello(Socket socket, HandshakeCertificate servercert) {
+        HandshakeMessage hm = new HandshakeMessage(HandshakeMessage.MessageType.SERVERHELLO);
+        try {
+            X509Certificate cert = servercert.getCertificate();
+            byte[] certBytes = cert.getEncoded();
+            String encodedCert = Base64.getEncoder().encodeToString(certBytes);
+            hm.put("Certificate", encodedCert);
+            hm.send(socket);
+        }
+        catch(CertificateEncodingException cee) {
+            System.err.printf("Error getting encoded certificate\n");
+            System.exit(1);
+        }
+        catch(IOException ioe) {
+            System.err.printf("Error sending ServerHello\n");
             System.exit(1);
         }
     }
@@ -170,9 +206,10 @@ public class NetPipeServer {
 
         // wait for a CLIENTHELLO
         recvClientHello(clientSocket, caCert);
-        System.out.println("received ClientHello without problems!");
-        // use HandshakeCertificate to verify client's certificate
+        System.out.println("received ClientHello");
         // use HandshakeMessage to send SERVERHELLO including certificate
+        sendServerHello(clientSocket, serverCert);
+        System.out.println("sent ServerHello");
         // wait for SESSION
         // use server's private key to create a digest with HandshakeDigest and send SERVERFINISHED
         // wait for CLIENTFINISHED
