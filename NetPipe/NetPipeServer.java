@@ -64,6 +64,27 @@ public class NetPipeServer {
         }
     }
 
+    // initiate private key
+    private static byte[] initKey(String pathName) {
+        try {
+            FileInputStream fis = new FileInputStream(pathName);
+            byte[] PKBytes = fis.readAllBytes();
+            fis.close();
+
+            return PKBytes;
+        }
+        catch(FileNotFoundException fnfe) {
+            System.err.printf("Cannot find file %s\n", pathName);
+
+            return null;
+        }
+        catch(IOException ioe) {
+            System.err.printf("Error reading private key %s\n", pathName);
+
+            return null;
+        }
+    }
+
     // verify CA certificate
     private static void verifyCACert(HandshakeCertificate CA) {
         try {
@@ -177,6 +198,24 @@ public class NetPipeServer {
         }
     }
 
+    // receive Session message
+    private static SessionCipher recvSession(Socket socket, byte[] privateKey) {
+        try {
+            HandshakeMessage hm = HandshakeMessage.recv(socket);
+            if(hm.getType().getCode() != 3) {
+                throw new IOException();
+            }          
+            String encodedSK = hm.getParameter("SessionKey");
+            String encodedIV = hm.getParameter("SessionIV");
+            
+        }
+        catch(IOException | ClassNotFoundException e) {
+            System.err.printf("Error receiving Session from client\n");
+
+            return null;
+        }
+    }
+
     // main program
     // parse arguments on command line, wait for connection from client,
     // and call switcher to switch data between streams
@@ -194,6 +233,10 @@ public class NetPipeServer {
         }
         verifyCACert(caCert);
         verifyServerCert(serverCert, caCert);
+        byte[] key = initKey(privatekeyPath);
+        if(key == null) {
+            System.exit(1);
+        }
         
         ServerSocket serverSocket = initServerSocket(port);
         if(serverSocket == null) {
