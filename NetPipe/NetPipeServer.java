@@ -1,4 +1,5 @@
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -6,13 +7,27 @@ import java.security.SignatureException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.time.DateTimeException;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Base64;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+
 import java.io.*;
 
 public class NetPipeServer {
     
     private static String PROGRAMNAME = NetPipeServer.class.getSimpleName();
     private static Arguments arguments;
+    private static byte[] ClientHello = null;
+    private static byte[] ServerHello = null;
+    private static byte[] Session = null;
 
     // usage: explain how to use the program, then exit with failure status
     private static void usage() {
@@ -155,7 +170,7 @@ public class NetPipeServer {
     }
 
     // receive ClientHello message and verify client certificate
-    private static void recvClientHello(Socket socket, HandshakeCertificate CA) {
+    private static HandshakeCertificate recvClientHello(Socket socket, HandshakeCertificate CA) {
         try {
             HandshakeMessage hm = HandshakeMessage.recv(socket);
             if(hm.getType().getCode() != 1) {
@@ -165,16 +180,19 @@ public class NetPipeServer {
             byte[] decodedCert = Base64.getDecoder().decode(encodedCert);
             HandshakeCertificate clientCert = new HandshakeCertificate(decodedCert);
             verifyClientCert(clientCert, CA);
+            ClientHello = hm.getBytes();
+
+            return clientCert;
         }
         catch(IOException | ClassNotFoundException e) {
             System.err.printf("Error receiving ClientHello from client\n");
 
-            System.exit(1);
+            return null;
         }
         catch(CertificateException ce) {
             System.err.printf("Error reading client certificate\n");
 
-            System.exit(1);
+            return null;
         }
     }
 
@@ -186,6 +204,7 @@ public class NetPipeServer {
             byte[] certBytes = cert.getEncoded();
             String encodedCert = Base64.getEncoder().encodeToString(certBytes);
             hm.put("Certificate", encodedCert);
+            ServerHello = hm.getBytes();
             hm.send(socket);
         }
         catch(CertificateEncodingException cee) {
@@ -198,21 +217,144 @@ public class NetPipeServer {
         }
     }
 
-    // receive Session message
+    // receive Session message and get session key + IV
     private static SessionCipher recvSession(Socket socket, byte[] privateKey) {
         try {
             HandshakeMessage hm = HandshakeMessage.recv(socket);
+            HandshakeCrypto hc = new HandshakeCrypto(privateKey);
             if(hm.getType().getCode() != 3) {
                 throw new IOException();
             }          
             String encodedSK = hm.getParameter("SessionKey");
             String encodedIV = hm.getParameter("SessionIV");
-            
+            byte[] decodedSK = Base64.getDecoder().decode(encodedSK);
+            byte[] decodedIV = Base64.getDecoder().decode(encodedIV);
+            decodedSK = hc.decrypt(decodedSK);
+            decodedIV = hc.decrypt(decodedIV);
+            SessionKey sk = new SessionKey(decodedSK);
+            SessionCipher sc = new SessionCipher(sk, decodedIV);
+            Session = hm.getBytes();
+
+            return sc;
         }
         catch(IOException | ClassNotFoundException e) {
             System.err.printf("Error receiving Session from client\n");
 
             return null;
+        }
+        catch(NoSuchAlgorithmException | InvalidKeySpecException e) {
+            System.err.printf("Error instantiating private key\n");
+
+            return null;
+        }
+        catch(NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
+            System.err.printf("Error using private key\n");
+
+            return null;
+        }
+    }
+
+    // send ServerFinished message
+    private static void sendServerFinished(Socket socket, byte[] privateKey) {
+        HandshakeMessage hm = new HandshakeMessage(HandshakeMessage.MessageType.SERVERFINISHED);
+        try {
+            HandshakeDigest hd = new HandshakeDigest();
+            HandshakeCrypto hc = new HandshakeCrypto(privateKey);
+            hd.update(ServerHello);
+            byte[] digest = hd.digest();
+            byte[] signedDigest = hc.encrypt(digest);
+            String encodedDigest = Base64.getEncoder().encodeToString(signedDigest);
+            hm.put("Signature", encodedDigest);
+
+            LocalDateTime ldt = LocalDateTime.now();
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String dateTime = ldt.format(dtf);
+            byte[] dtArray = dateTime.getBytes(StandardCharsets.UTF_8);
+            byte[] signedDT = hc.encrypt(dtArray);
+            String encodedDT = Base64.getEncoder().encodeToString(signedDT);
+            hm.put("TimeStamp", encodedDT);
+
+            //debug
+            //System.out.printf("Server time %s\n", dateTime);
+
+            hm.send(socket);
+        }
+        catch(NoSuchAlgorithmException nsae) {
+            System.err.printf("Error creating digest\n");
+    
+            System.exit(1);
+        }
+        catch(InvalidKeySpecException ikse) {
+            System.err.printf("Error instatiating private key\n");
+
+            System.exit(1);
+        }
+        catch(NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
+            System.err.printf("Error encrypting digest\n");
+
+            System.exit(1);
+        }
+        catch(IOException ioe) {
+            System.err.printf("Error sending ServerFinished\n");
+
+            System.exit(1);
+        }
+    }
+
+    // receive ClientFinished message and check integrity and authentication of handshake
+    private static void recvClientFinished(Socket socket, HandshakeCertificate clientCert) {
+        HandshakeCrypto hc = new HandshakeCrypto(clientCert);
+        try {
+            HandshakeMessage hm = HandshakeMessage.recv(socket);
+            if(hm.getType().getCode() != 4) {
+                throw new IOException();
+            }
+
+            LocalDateTime serverLDT = LocalDateTime.now();
+            String encodedClientTD = hm.getParameter("TimeStamp");
+            byte[] decodedClientTD = Base64.getDecoder().decode(encodedClientTD);
+            decodedClientTD = hc.decrypt(decodedClientTD);
+            String clientTD = new String(decodedClientTD, StandardCharsets.UTF_8);
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            LocalDateTime clientLDT = LocalDateTime.parse(clientTD, dtf);
+            Duration duration = Duration.between(clientLDT, serverLDT);
+            long secondsDiff = duration.getSeconds();
+            System.out.printf("Difference between server and client time: %d\n", secondsDiff);
+            System.out.printf("Server time %s\n", clientLDT.format(dtf));
+            if(Math.abs(secondsDiff) > 10) {
+                throw new DateTimeException("");
+            }
+
+            HandshakeDigest hd = new HandshakeDigest();
+            String encodedSign = hm.getParameter("Signature");
+            byte[] decodedSign = Base64.getDecoder().decode(encodedSign);
+            byte[] clientDigest = hc.decrypt(decodedSign);
+            hd.update(ClientHello);
+            hd.update(Session);
+            byte[] localDigest = hd.digest();
+            if(!(Arrays.equals(localDigest, clientDigest))) {
+                throw new ArrayStoreException(); // might be bad programming but I want a unique Exception to catch
+            }
+        }
+        catch(IOException | ClassNotFoundException e) {
+            System.err.printf("Error receiving ClientFinished from client\n");
+
+            System.exit(1);
+        }
+        catch(NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
+            System.err.printf("Error decrypting ClientFinished from client\n");
+
+            System.exit(1);
+        }
+        catch(DateTimeException dte) {
+            System.err.printf("ClientFinished message too old (10 seconds)\n");
+
+            System.exit(1);
+        }
+        catch(ArrayStoreException ase) {
+            System.err.printf("Integrity check failed\n");
+
+            System.exit(1);
         }
     }
 
@@ -248,15 +390,32 @@ public class NetPipeServer {
         }
 
         // wait for a CLIENTHELLO
-        recvClientHello(clientSocket, caCert);
+        HandshakeCertificate clientCert = recvClientHello(clientSocket, caCert);
+        if(clientCert == null || ClientHello == null) {
+            System.exit(1);
+        }
         System.out.println("received ClientHello");
         // use HandshakeMessage to send SERVERHELLO including certificate
         sendServerHello(clientSocket, serverCert);
         System.out.println("sent ServerHello");
+        if(ServerHello == null) {
+            System.exit(1);
+        }
         // wait for SESSION
+        SessionCipher sessionCipher = recvSession(clientSocket, key);
+        if(sessionCipher == null || Session == null) {
+            System.exit(1);
+        }
+        System.out.println("received Session");
+        // check later
+        //System.out.printf("IV is %s, length is %d", new String(sessionCipher.getIVBytes(), StandardCharsets.US_ASCII), sessionCipher.getIVBytes().length);
         // use server's private key to create a digest with HandshakeDigest and send SERVERFINISHED
+        sendServerFinished(clientSocket, key);
+        System.out.println("sent ServerFinished");
         // wait for CLIENTFINISHED
         // verify the client's digest integrity
+        recvClientFinished(clientSocket, clientCert);
+        System.out.println("received ClientFinished");
         try {
             Forwarder.forwardStreams(System.in, System.out, clientSocket.getInputStream(), clientSocket.getOutputStream(), clientSocket);
         } catch (IOException ex) {

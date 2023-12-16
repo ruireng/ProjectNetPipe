@@ -1,4 +1,5 @@
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -8,6 +9,13 @@ import java.security.SignatureException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.sql.Date;
+import java.time.DateTimeException;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Base64;
 
 import javax.crypto.BadPaddingException;
@@ -22,6 +30,9 @@ public class NetPipeClient {
     
     private static String PROGRAMNAME = NetPipeClient.class.getSimpleName();
     private static Arguments arguments;
+    private static byte[] ClientHello = null;
+    private static byte[] ServerHello = null;
+    private static byte[] Session = null;
 
     // usage: explain how to use the program, then exit with failure status
     private static void usage() {
@@ -161,6 +172,7 @@ public class NetPipeClient {
             byte[] certBytes = cert.getEncoded();
             String encodedCert = Base64.getEncoder().encodeToString(certBytes);
             hm.put("Certificate", encodedCert);
+            ClientHello = hm.getBytes();
             hm.send(socket);
         }
         catch(CertificateEncodingException cee) {
@@ -184,6 +196,7 @@ public class NetPipeClient {
             byte[] decodedCert = Base64.getDecoder().decode(encodedCert);
             HandshakeCertificate serverCert = new HandshakeCertificate(decodedCert);
             verifyServerCert(serverCert, CA);
+            ServerHello = hm.getBytes();
 
             return serverCert;
         }
@@ -199,7 +212,7 @@ public class NetPipeClient {
         }
     }
 
-    // send Session message
+    // send Session message and get session key + IV
     private static SessionCipher sendSession(Socket socket, HandshakeCertificate serverCert) {
         HandshakeMessage hm = new HandshakeMessage(HandshakeMessage.MessageType.SESSION);
         HandshakeCrypto hc = new HandshakeCrypto(serverCert);
@@ -214,6 +227,7 @@ public class NetPipeClient {
             String encodedIV = Base64.getEncoder().encodeToString(IVBytes);
             hm.put("SessionKey", encodedSK);
             hm.put("SessionIV", encodedIV);
+            Session = hm.getBytes();
             hm.send(socket);
 
             return sc;
@@ -235,6 +249,110 @@ public class NetPipeClient {
         }
     }
 
+    // receive ServerFinished message and check integrity and authentication of handshake
+    private static void recvServerFinished(Socket socket, HandshakeCertificate serverCert) {
+        HandshakeCrypto hc = new HandshakeCrypto(serverCert);
+        try {
+            HandshakeMessage hm = HandshakeMessage.recv(socket);
+            if(hm.getType().getCode() != 5) {
+                throw new IOException();
+            }
+
+            LocalDateTime clientLDT = LocalDateTime.now();
+            String encodedServerTD = hm.getParameter("TimeStamp");
+            byte[] decodedServerTD = Base64.getDecoder().decode(encodedServerTD);
+            decodedServerTD = hc.decrypt(decodedServerTD);
+            String serverTD = new String(decodedServerTD, StandardCharsets.UTF_8);
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            LocalDateTime serverLDT = LocalDateTime.parse(serverTD, dtf);
+            Duration duration = Duration.between(serverLDT, clientLDT);
+            long secondsDiff = duration.getSeconds();
+            //System.out.printf("Difference between client and server time: %d\n", secondsDiff);
+            //System.out.printf("Client time %s\n", clientLDT.format(dtf));
+            if(Math.abs(secondsDiff) > 10) {
+                throw new DateTimeException("");
+            }
+
+            HandshakeDigest hd = new HandshakeDigest();
+            String encodedSign = hm.getParameter("Signature");
+            byte[] decodedSign = Base64.getDecoder().decode(encodedSign);
+            byte[] serverDigest = hc.decrypt(decodedSign);
+            hd.update(ServerHello);
+            byte[] localDigest = hd.digest();
+            if(!(Arrays.equals(localDigest, serverDigest))) {
+                throw new ArrayStoreException(); // might be bad programming but I want a unique Exception to catch
+            }
+        }
+        catch(IOException | ClassNotFoundException e) {
+            System.err.printf("Error receiving ServerFinished from server\n");
+
+            System.exit(1);
+        }
+        catch(NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
+            System.err.printf("Error decrypting ServerFinished from server\n");
+
+            System.exit(1);
+        }
+        catch(DateTimeException dte) {
+            System.err.printf("ServerFinished message too old (10 seconds)\n");
+
+            System.exit(1);
+        }
+        catch(ArrayStoreException ase) {
+            System.err.printf("Integrity check failed\n");
+
+            System.exit(1);
+        }
+    }
+
+    // send ClientFinished message
+    private static void sendClientFinished(Socket socket, byte[] privateKey) {
+        HandshakeMessage hm = new HandshakeMessage(HandshakeMessage.MessageType.CLIENTFINISHED);
+        try {
+            HandshakeDigest hd = new HandshakeDigest();
+            HandshakeCrypto hc = new HandshakeCrypto(privateKey);
+            hd.update(ClientHello);
+            hd.update(Session);
+            byte[] digest = hd.digest();
+            byte[] signedDigest = hc.encrypt(digest);
+            String encodedDigest = Base64.getEncoder().encodeToString(signedDigest);
+            hm.put("Signature", encodedDigest);
+
+            LocalDateTime ldt = LocalDateTime.now();
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            String dateTime = ldt.format(dtf);
+            byte[] dtArray = dateTime.getBytes(StandardCharsets.UTF_8);
+            byte[] signedDT = hc.encrypt(dtArray);
+            String encodedDT = Base64.getEncoder().encodeToString(signedDT);
+            hm.put("TimeStamp", encodedDT);
+
+            //debug
+            System.out.printf("Client time %s\n", dateTime);
+
+            hm.send(socket);
+        }
+        catch(NoSuchAlgorithmException nsae) {
+            System.err.printf("Error creating digest\n");
+    
+            System.exit(1);
+        }
+        catch(InvalidKeySpecException ikse) {
+            System.err.printf("Error instatiating private key\n");
+
+            System.exit(1);
+        }
+        catch(NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
+            System.err.printf("Error encrypting digest\n");
+
+            System.exit(1);
+        }
+        catch(IOException ioe) {
+            System.err.printf("Error sending ClientFinished\n");
+
+            System.exit(1);
+        }
+    }
+
     // main program
     // parse arguments on command line, connect to server,
     // and call forwarder to forward data between streams
@@ -251,8 +369,11 @@ public class NetPipeClient {
         if(clientCert == null || caCert == null) {
             System.exit(1);
         }
+
+        // also verify mail!
         verifyCACert(caCert);
         verifyClientCert(clientCert, caCert);
+        //------------------
         byte[] key = initKey(privatekeyPath);
         if(key == null) {
             System.exit(1);
@@ -266,21 +387,30 @@ public class NetPipeClient {
         // use HandshakeMessage to send CLIENTHELLO to server
         sendClientHello(socket, clientCert);
         System.out.println("sent ClientHello");
+        if(ClientHello == null) {
+            System.exit(1);
+        }
         // wait for SERVERHELLO
         HandshakeCertificate serverCert = recvServerHello(socket, caCert);
-        if(serverCert == null) {
+        if(serverCert == null || ServerHello == null) {
             System.exit(1);
         }
         System.out.println("received ServerHello");
         // use HandshakeCertificate to verify server's certificate
         // send SESSION to server
         SessionCipher sessionCipher = sendSession(socket, serverCert);
-        if(sessionCipher == null) {
+        if(sessionCipher == null || Session == null) {
             System.exit(1);
         }
-        //System.out.println("sent Session");
+        System.out.println("sent Session");
+        // check later
+        //System.out.printf("IV is %s, length is %d", new String(sessionCipher.getIVBytes(), StandardCharsets.US_ASCII), sessionCipher.getIVBytes().length);
         // wait for SERVERFINISHED
+        recvServerFinished(socket, serverCert);
+        System.out.println("received ServerFinished");
         // send CLIENTFINISHED
+        sendClientFinished(socket, key);
+        System.out.println("sent ClientFinished");
         try {
             Forwarder.forwardStreams(System.in, System.out, socket.getInputStream(), socket.getOutputStream(), socket);
         } catch (IOException ex) {
