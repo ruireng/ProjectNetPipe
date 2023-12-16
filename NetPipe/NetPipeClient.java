@@ -22,7 +22,6 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.CipherOutputStream;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.net.ssl.SSLEngineResult.HandshakeStatus;
 
 import java.io.*;
 
@@ -42,7 +41,6 @@ public class NetPipeClient {
         indent += "    ";
         System.err.println(indent + "--host=<hostname>");
         System.err.println(indent + "--port=<portnumber>");
-
         System.err.println(indent + "--usercert=<filename>");
         System.err.println(indent + "--cacert=<filename>");
         System.err.println(indent + "--key=<filename>");
@@ -77,12 +75,10 @@ public class NetPipeClient {
         }
         catch(FileNotFoundException fnfe) {
             System.err.printf("Cannot find file %s\n", pathName);
-
             return null;
         }
         catch(CertificateException ce) {
             System.err.printf("Error initiating certificate %s\n", pathName);
-
             return null;
         }
     }
@@ -98,12 +94,10 @@ public class NetPipeClient {
         }
         catch(FileNotFoundException fnfe) {
             System.err.printf("Cannot find file %s\n", pathName);
-
             return null;
         }
         catch(IOException ioe) {
             System.err.printf("Error reading private key %s\n", pathName);
-
             return null;
         }
     }
@@ -111,7 +105,9 @@ public class NetPipeClient {
     // verify CA certificate
     private static void verifyCACert(HandshakeCertificate CA) {
         try {
-            if(!(CA.getCN().equals("ca-np.ik2206.kth.se"))) {
+            String CN = CA.getCN();
+            String email = CA.getEmail();
+            if(!(CN.equals("ca-np.ik2206.kth.se")) || !(email.contains("@kth.se"))) {
                 throw new CertificateException();
             }
             CA.verify(CA);
@@ -125,7 +121,9 @@ public class NetPipeClient {
     // verify client certificate against CA
     private static void verifyClientCert(HandshakeCertificate client, HandshakeCertificate CA) {
         try {
-            if(!(client.getCN().equals("client-np.ik2206.kth.se"))) {
+            String CN = client.getCN();
+            String email = client.getEmail();
+            if(!(CN.equals("client-np.ik2206.kth.se")) || !(email.contains("@kth.se"))) {
                 throw new CertificateException();
             }
             client.verify(CA);
@@ -139,7 +137,9 @@ public class NetPipeClient {
     // verify server certificate against CA
     private static void verifyServerCert(HandshakeCertificate server, HandshakeCertificate CA) {
         try {
-            if(!(server.getCN().equals("server-np.ik2206.kth.se"))) {
+            String CN = server.getCN();
+            String email = server.getEmail();
+            if(!(CN.equals("server-np.ik2206.kth.se")) || !(email.contains("@kth.se"))) {
                 throw new CertificateException();
             }
             server.verify(CA);
@@ -158,8 +158,7 @@ public class NetPipeClient {
             return socket;
         }
         catch(IOException ioe) {
-            System.err.printf("Can't connect to server at %s:%d\n", host, port);
-            
+            System.err.printf("Can't connect to server at %s:%d\n", host, port);           
             return null;
         }
     }
@@ -173,6 +172,7 @@ public class NetPipeClient {
             String encodedCert = Base64.getEncoder().encodeToString(certBytes);
             hm.put("Certificate", encodedCert);
             ClientHello = hm.getBytes();
+
             hm.send(socket);
         }
         catch(CertificateEncodingException cee) {
@@ -202,12 +202,10 @@ public class NetPipeClient {
         }
         catch(IOException | ClassNotFoundException e) {
             System.err.printf("Error receiving ServerHello from server\n");
-
             return null;
         }
         catch(CertificateException ce) {
             System.err.printf("Error reading server certificate\n");
-
             return null;
         }
     }
@@ -234,17 +232,14 @@ public class NetPipeClient {
         }
         catch(NoSuchAlgorithmException nsae) {
             System.err.printf("Error creating session key\n");
-
             return null;
         }
         catch(NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
             System.err.printf("Error encrypting session message\n");
-
             return null;
         }
         catch(IOException ioe) {
             System.err.printf("Error sending Session\n");
-
             return null;
         }
     }
@@ -267,8 +262,6 @@ public class NetPipeClient {
             LocalDateTime serverLDT = LocalDateTime.parse(serverTD, dtf);
             Duration duration = Duration.between(serverLDT, clientLDT);
             long secondsDiff = duration.getSeconds();
-            //System.out.printf("Difference between client and server time: %d\n", secondsDiff);
-            //System.out.printf("Client time %s\n", clientLDT.format(dtf));
             if(Math.abs(secondsDiff) > 10) {
                 throw new DateTimeException("");
             }
@@ -285,22 +278,18 @@ public class NetPipeClient {
         }
         catch(IOException | ClassNotFoundException e) {
             System.err.printf("Error receiving ServerFinished from server\n");
-
             System.exit(1);
         }
         catch(NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
             System.err.printf("Error decrypting ServerFinished from server\n");
-
             System.exit(1);
         }
         catch(DateTimeException dte) {
             System.err.printf("ServerFinished message too old (10 seconds)\n");
-
             System.exit(1);
         }
         catch(ArrayStoreException ase) {
             System.err.printf("Integrity check failed\n");
-
             System.exit(1);
         }
     }
@@ -325,30 +314,23 @@ public class NetPipeClient {
             byte[] signedDT = hc.encrypt(dtArray);
             String encodedDT = Base64.getEncoder().encodeToString(signedDT);
             hm.put("TimeStamp", encodedDT);
-
-            //debug
-            System.out.printf("Client time %s\n", dateTime);
-
+            
             hm.send(socket);
         }
         catch(NoSuchAlgorithmException nsae) {
-            System.err.printf("Error creating digest\n");
-    
+            System.err.printf("Error creating digest\n");    
             System.exit(1);
         }
         catch(InvalidKeySpecException ikse) {
             System.err.printf("Error instatiating private key\n");
-
             System.exit(1);
         }
         catch(NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException e) {
             System.err.printf("Error encrypting digest\n");
-
             System.exit(1);
         }
         catch(IOException ioe) {
             System.err.printf("Error sending ClientFinished\n");
-
             System.exit(1);
         }
     }
@@ -369,11 +351,8 @@ public class NetPipeClient {
         if(clientCert == null || caCert == null) {
             System.exit(1);
         }
-
-        // also verify mail!
         verifyCACert(caCert);
         verifyClientCert(clientCert, caCert);
-        //------------------
         byte[] key = initKey(privatekeyPath);
         if(key == null) {
             System.exit(1);
@@ -384,40 +363,28 @@ public class NetPipeClient {
             System.exit(1);
         }
         
-        // use HandshakeMessage to send CLIENTHELLO to server
         sendClientHello(socket, clientCert);
-        System.out.println("sent ClientHello");
         if(ClientHello == null) {
             System.exit(1);
         }
-        // wait for SERVERHELLO
         HandshakeCertificate serverCert = recvServerHello(socket, caCert);
         if(serverCert == null || ServerHello == null) {
             System.exit(1);
         }
-        System.out.println("received ServerHello");
-        // use HandshakeCertificate to verify server's certificate
-        // send SESSION to server
         SessionCipher sessionCipher = sendSession(socket, serverCert);
         if(sessionCipher == null || Session == null) {
             System.exit(1);
         }
-        System.out.println("sent Session");
-        // check later
-        //System.out.printf("IV is %s, length is %d", new String(sessionCipher.getIVBytes(), StandardCharsets.US_ASCII), sessionCipher.getIVBytes().length);
-        // wait for SERVERFINISHED
         recvServerFinished(socket, serverCert);
-        System.out.println("received ServerFinished");
-        // send CLIENTFINISHED
         sendClientFinished(socket, key);
-        System.out.println("sent ClientFinished");
+
         try {
             OutputStream os = sessionCipher.openEncryptedOutputStream(socket.getOutputStream());
             InputStream is = sessionCipher.openDecryptedInputStream(socket.getInputStream());
-            Forwarder.forwardStreams(System.in, System.out, socket.getInputStream(), socket.getOutputStream(), socket);
+            Forwarder.forwardStreams(System.in, System.out, is, os, socket);
         }
         catch(IOException ioe) {
-            System.out.println("Stream forwarding error\n");
+            System.err.println("Stream forwarding error\n");
             System.exit(1);
         }
         catch(NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException e) {
