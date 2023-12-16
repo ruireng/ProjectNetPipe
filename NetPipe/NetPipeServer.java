@@ -1,5 +1,6 @@
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -417,9 +418,16 @@ public class NetPipeServer {
         recvClientFinished(clientSocket, clientCert);
         System.out.println("received ClientFinished");
         try {
+            OutputStream os = sessionCipher.openEncryptedOutputStream(clientSocket.getOutputStream());
+            InputStream is = sessionCipher.openDecryptedInputStream(clientSocket.getInputStream());
             Forwarder.forwardStreams(System.in, System.out, clientSocket.getInputStream(), clientSocket.getOutputStream(), clientSocket);
-        } catch (IOException ex) {
+        }
+        catch(IOException ioe) {
             System.out.println("Stream forwarding error\n");
+            System.exit(1);
+        }
+        catch(NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException e) {
+            System.err.println("Error opening encrypted and/or decrypted stream");
             System.exit(1);
         }
     }

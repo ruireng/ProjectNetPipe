@@ -412,9 +412,16 @@ public class NetPipeClient {
         sendClientFinished(socket, key);
         System.out.println("sent ClientFinished");
         try {
+            OutputStream os = sessionCipher.openEncryptedOutputStream(socket.getOutputStream());
+            InputStream is = sessionCipher.openDecryptedInputStream(socket.getInputStream());
             Forwarder.forwardStreams(System.in, System.out, socket.getInputStream(), socket.getOutputStream(), socket);
-        } catch (IOException ex) {
+        }
+        catch(IOException ioe) {
             System.out.println("Stream forwarding error\n");
+            System.exit(1);
+        }
+        catch(NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException e) {
+            System.err.println("Error opening encrypted and/or decrypted stream");
             System.exit(1);
         }
     }
