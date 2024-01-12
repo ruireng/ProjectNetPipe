@@ -105,11 +105,6 @@ public class NetPipeClient {
     // verify CA certificate
     private static void verifyCACert(HandshakeCertificate CA) {
         try {
-            String CN = CA.getCN();
-            String email = CA.getEmail();
-            if(!(CN.equals("ca-np.ik2206.kth.se")) || !(email.contains("@kth.se"))) {
-                throw new CertificateException();
-            }
             CA.verify(CA);
         }
         catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
@@ -121,11 +116,6 @@ public class NetPipeClient {
     // verify client certificate against CA
     private static void verifyClientCert(HandshakeCertificate client, HandshakeCertificate CA) {
         try {
-            String CN = client.getCN();
-            String email = client.getEmail();
-            if(!(CN.equals("client-np.ik2206.kth.se")) || !(email.contains("@kth.se"))) {
-                throw new CertificateException();
-            }
             client.verify(CA);
         }
         catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
@@ -137,11 +127,6 @@ public class NetPipeClient {
     // verify server certificate against CA
     private static void verifyServerCert(HandshakeCertificate server, HandshakeCertificate CA) {
         try {
-            String CN = server.getCN();
-            String email = server.getEmail();
-            if(!(CN.equals("server-np.ik2206.kth.se")) || !(email.contains("@kth.se"))) {
-                throw new CertificateException();
-            }
             server.verify(CA);
         }
         catch(CertificateException | NoSuchAlgorithmException | InvalidKeyException | SignatureException | NoSuchProviderException e) {
