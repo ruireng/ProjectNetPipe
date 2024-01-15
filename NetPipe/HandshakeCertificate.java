@@ -1,18 +1,13 @@
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-
+import java.security.cert.*;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SignatureException;
-
-import java.security.cert.*;
-
 import javax.naming.InvalidNameException;
-import javax.naming.NamingException;
 import javax.naming.ldap.LdapName;
 import javax.naming.ldap.Rdn;
-import javax.security.auth.x500.X500Principal;
 
 // handshakeCertificate class represents X509 certificates exchanged during initial handshake
 public class HandshakeCertificate {

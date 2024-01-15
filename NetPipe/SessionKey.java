@@ -1,6 +1,6 @@
+import java.security.NoSuchAlgorithmException;
 import javax.crypto.*;
 import javax.crypto.spec.SecretKeySpec;
-import java.security.NoSuchAlgorithmException;
 
 // skeleton code for class SessionKey
 

@@ -5,9 +5,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ObjectOutputStream;
 import java.io.ObjectInputStream;
 import java.io.IOException;
-
-import java.nio.ByteBuffer;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.util.Properties;
 
 // a handshake message is represented as a set of parameters -- <key, value> pairs
