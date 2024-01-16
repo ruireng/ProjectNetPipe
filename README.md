@@ -22,7 +22,11 @@ OpenSSL> req -new -x509 -newkey rsa:2048 -keyout your_CA_privatekey.pem
 
 2. Save the certificate (the output) in a file, your_CA_certificate.pem. The output looks something like this:
 
-![alt text](https://github.com/ruireng/ProjectNetPipe/blob/main/Resources/ca-certificate.png)
+```
+-----BEGIN CERTIFICATE-----
+[Randomly generated characters]
+-----END CERTIFICATE-----
+```
 
 3. Generate your own keypair.
 
