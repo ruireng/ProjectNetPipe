@@ -24,7 +24,7 @@ OpenSSL> req -new -x509 -newkey rsa:2048 -keyout your_CA_privatekey.pem
 
 ```
 -----BEGIN CERTIFICATE-----
-[Randomly generated characters]
+[Seemingly randomly generated characters]
 -----END CERTIFICATE-----
 ```
 
@@ -68,6 +68,24 @@ OpenSSL> x509 -req -in csr.pem -out your_certificate.pem -CA your_CA_certificate
 OpenSSL> x509 -in your_certificate.pem -text -noout
 ```
 
-## Project Setup
-1. Clone the repository.
-2. 
+## Project Setup (Server Side)
+1. Clone the repository. The project lies in the `NetPipe` directory.
+
+2. Open a terminal and change directory into `NetPipe`.
+
+3. Start the server with these commands:
+
+```
+javac NetPipeServer.java
+java NetPipeServer --port=7777 --usercert=server.pem --cacert=ca.pem --key=server-private.der
+```
+
+All the inputted arguments in the commands above are just examples.  
+`--port=`: The port number your server will run on.  
+`--usercert=`: The user's certificate file, which will also represent the server. This file is equivalent to `your_certificate.pem` in the **Creating Certificates Using OpenSSL** section.  
+`--cacert=`: The CA's certificate file used to sign the user's certificate. This file is equivalent to `your_CA_certificate.pem` in the **Creating Certificates Using OpenSSL** section.  
+`--key=`: The user's secret key file. This file is equivalent to `your_privatekey.der` in the **Creating Certificates Using OpenSSL** section.  
+
+All of the file names are relative path names to the `NetPipe` directory.
+
+4. Wait until a client connects.
