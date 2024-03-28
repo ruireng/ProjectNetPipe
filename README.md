@@ -112,5 +112,6 @@ All of the file names are relative path names to the `NetPipe` directory.
 3. Unless an error message is presented, the client should now be connected with the specified server, and all messages that are sent will be securely encrypted.  
 
 # About the project:
+Made during the course IK2206 Internet Security and Privacy.
 This project was made during the fall term of 2023.  
 Certificates were created using OpenSSL and the rest of the code is mostly based on Java's javax.crypto and security libraries.
