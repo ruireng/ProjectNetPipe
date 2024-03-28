@@ -101,12 +101,16 @@ java NetPipeClient --host=localhost --port=7777 --usercert=client.pem --cacert=c
 ```
 
 All the inputted arguments in the commands above are just examples.  
-`--host=`: The name of the server. If the server is running on the same computer, the name will be `localhost´. If the server is running from another machine, the hostname will be that machine's IPv4 address.
+`--host=`: The name of the server. If the server is running on the same computer, the name will be `localhost`. If the server is running from another machine, the hostname will be that machine's IPv4 address.  
 `--port=`: The port number your server will run on.  
 `--usercert=`: The user's certificate file, which will also represent the server. This file is equivalent to `your_certificate.pem` in the **Creating Certificates Using OpenSSL** section.  
 `--cacert=`: The CA's certificate file used to sign the user's certificate. This file is equivalent to `your_CA_certificate.pem` in the **Creating Certificates Using OpenSSL** section.  
 `--key=`: The user's secret key file. This file is equivalent to `your_privatekey.der` in the **Creating Certificates Using OpenSSL** section.  
 
-All of the file names are relative path names to the `NetPipe` directory.
+All of the file names are relative path names to the `NetPipe` directory.  
 
-3. Unless an error message is presented, the client should now be connected with the specified server, and all messages that are sent will be securely encrypted.
+3. Unless an error message is presented, the client should now be connected with the specified server, and all messages that are sent will be securely encrypted.  
+
+# About the project:
+This project was made during the fall term of 2023.  
+Certificates were created using OpenSSL and the rest of the code is mostly based on Java's javax.crypto and security libraries.
