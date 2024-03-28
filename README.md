@@ -1,4 +1,4 @@
-# IK2206 Internet Security and Privacy - Project: NetPipe
+# NetPipe
 NetPipe is a secure network application providing basic communication services. It sets up a TCP connection between two hosts and forwards the data between system I/O and the TCP connection. This application is very similar to "netcat" or "nc".
 
 NetPipe establishes a secure tunnel for communication between two computers. In this way, NetPipe can serve as a general-purpose VPN application that allows you to connect computers across the network in a secure way.
@@ -112,6 +112,6 @@ All of the file names are relative path names to the `NetPipe` directory.
 3. Unless an error message is presented, the client should now be connected with the specified server, and all messages that are sent will be securely encrypted.  
 
 # About the project:
-Made during the course IK2206 Internet Security and Privacy.
+Made during the course IK2206 Internet Security and Privacy.  
 This project was made during the fall term of 2023.  
-Certificates were created using OpenSSL and the rest of the code is mostly based on Java's javax.crypto and security libraries.
+Certificates were created using OpenSSL and the rest of the code is mostly based on Java's javax.crypto and security libraries.  
