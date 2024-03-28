@@ -88,4 +88,25 @@ All the inputted arguments in the commands above are just examples.
 
 All of the file names are relative path names to the `NetPipe` directory.
 
-4. Wait until a client connects.
+4. Wait until a client connects. After the client has connected, messages that are sent will be securely encrypted.
+
+## Project Setup (Client Side)
+1. Do step 1 and 2 from the **Project Setup (Server Side)** section.
+
+2. Start the connection to the server with these commands:
+
+```
+javac NetPipeClient.java
+java NetPipeClient --host=localhost --port=7777 --usercert=client.pem --cacert=ca.pem --key=client-private.der
+```
+
+All the inputted arguments in the commands above are just examples.  
+`--host=`: The name of the server. If the server is running on the same computer, the name will be `localhost´. If the server is running from another machine, the hostname will be that machine's IPv4 address.
+`--port=`: The port number your server will run on.  
+`--usercert=`: The user's certificate file, which will also represent the server. This file is equivalent to `your_certificate.pem` in the **Creating Certificates Using OpenSSL** section.  
+`--cacert=`: The CA's certificate file used to sign the user's certificate. This file is equivalent to `your_CA_certificate.pem` in the **Creating Certificates Using OpenSSL** section.  
+`--key=`: The user's secret key file. This file is equivalent to `your_privatekey.der` in the **Creating Certificates Using OpenSSL** section.  
+
+All of the file names are relative path names to the `NetPipe` directory.
+
+3. Unless an error message is presented, the client should now be connected with the specified server, and all messages that are sent will be securely encrypted.
